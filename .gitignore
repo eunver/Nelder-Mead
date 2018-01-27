@@ -99,3 +99,174 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+from Varant import *
+from math import *
+from operator import add
+
+
+from datetime import datetime, date, time, timedelta
+import os, sys
+import xlrd
+"""
+def diftoday(DateTemp):
+    return (DateTemp-datetime.today()+timedelta(hours=23)).days
+
+
+
+#import pdb
+#pdb.set_trace()
+
+#def Rosenbrock(x,y):
+    #k=100*(y-x**2)**2+(1-x)**2
+    #return k
+
+workbook2 = xlrd.open_workbook("Q:\Bilgin\VolReportNew.xlsm")
+
+VarrTemp = workbook2.sheet_by_name("XU030 Calibration")
+strikes=VarrTemp.col_values(0)
+vols=VarrTemp.col_values(1)
+M=VarrTemp.cell_value(0,2)
+
+t=diftoday(datetime.strptime(M,"%d.%m.%Y"))/365
+"""   
+strikes=[0.95,1.03,1.06]
+vols=[0.11,0.116,0.1493]
+
+w0=[0.09,0.5,1.2]
+w1=[0.08,0.4,0.35]
+w2=[0.07,-0.3,0.9]
+w3=[0.3,0.9,1.3]
+#w0 is a list of three: a,r,v
+#wo is initial input, other ws are created using it.
+fwd=1
+beta=0.5
+t=0.2
+def objective(vols,strikes,w0):  
+    vollen=len(vols)
+    summ=0
+    for k in range(vollen):
+        p=(vols[k]-SABR_Vol(*[1,strikes[k],t,w0[0],beta,w0[1],w0[2]]))**2
+        summ=summ+p
+    return sqrt(summ)   
+
+W=[w0,w1,w2,w3]
+#below calculates initial vertices(objective function returns) and returns as vi's
+vertices=[]
+for m in [w0,w1,w2,w3]:   
+    a=objective(vols,strikes,m)
+    vertices.append(a)
+for n, val in enumerate(vertices):
+    globals()["v%d"%n] = val
+M=tuple(zip(W,vertices))
+sortedvertices1=sorted(M,key=lambda M:M[1])
+sortedvertices=sorted(sortedvertices1,key=lambda sortedvertices1:sortedvertices1[1])
+#D=objective(vols,strikes,sortedvertices[3][0])
+#print(v0,v1,v2,v3)  
+#below is the average of vertices except the worst one, vertices are stored in TEMPORARY 
+
+temporary=[]
+for k,val in enumerate(sortedvertices[0:3]):
+    temporary.append(val[0])
+m=len(temporary)
+for n, val in enumerate(temporary):
+    globals()["s%d"%n] = val
+Average=[sum(x)/(m) for x in zip(s0,s1,s2)]
+
+worst=sortedvertices[3][0]
+best=sortedvertices[0][0]
+lousy=sortedvertices[2][0]
+count=0
+
+while (sortedvertices[0][1]>0.01 and count<200):
+    #REFLECTION
+    sortedvertices=sorted(sortedvertices,key=lambda sortedvertices:sortedvertices[1])
+    #print(sortedverticesnew)
+    temporarynew=[]
+    for k,val in enumerate(sortedvertices[0:3]):
+        temporarynew.append(val[0])
+    m=len(temporarynew)
+    for n, val in enumerate(temporarynew):
+        globals()["q%d"%n] = val
+    Averagenew=[sum(x)/(m) for x in zip(q0,q1,q2)] 
+    
+    worstnew=sortedvertices[3][0]
+    bestnew=sortedvertices[0][0]
+    lousynew=sortedvertices[2][0]
+    
+    temp=[2*x for x in Averagenew]
+    xR= [a_i-b_i for a_i,b_i in zip(temp,worstnew)]
+    refobj=objective(vols,strikes,xR)
+    #reflection is better than best point, then expansion
+    if refobj<sortedvertices[0][1]:
+        xE=[-2*a_i+3*b_i for a_i,b_i in zip(worstnew,Averagenew)]
+        expobj=objective(vols,strikes,xE)
+        if expobj<sortedvertices[0][1]:
+            sortedvertices[3]=xE,expobj
+            print("expanded")
+            #print(sortedvertices[3][0])
+            count=count+1
+        else:
+            sortedvertices[3]=xR,refobj
+            print("reflected")
+            #print(sortedvertices[3][0])
+            count=count+1
+    #reflection is not better than best, and worse than worst,
+    #then inside contraction
+    elif refobj<sortedvertices[2][1]:
+        sortedvertices[3]=xR,refobj
+        
+    elif refobj<sortedvertices[3][1]:
+        xOC=[1.5*a_i-0.5*b_i for a_i,b_i in zip(Averagenew,worstnew)]
+        outcontobj=objective(vols,strikes,xOC)
+        if outcontobj<=refobj:
+            sortedvertices[3]=xOC,outcontobj
+            print("outcontracted")
+            count=count+1
+        else:
+            a=sortedvertices[1][0]
+            anew=[0.5*a_i+0.5*b_i for a_i,b_i in zip(a,sortedvertices[0][0])]
+            anewobj=objective(vols,strikes,anew)
+            sortedvertices[1]=anew,anewobj
+            b=sortedvertices[2][0]
+            bnew=[0.5*a_i+0.5*b_i for a_i,b_i in zip(b,sortedvertices[0][0])]
+            bnewobj=objective(vols,strikes,bnew)
+            sortedvertices[2]=bnew,bnewobj
+            c=sortedvertices[3][0]
+            cnew=[0.5*a_i+0.5*b_i for a_i,b_i in zip(c,sortedvertices[0][0])]
+            cnewobj=objective(vols,strikes,cnew)
+            sortedvertices[3]=cnew,cnewobj
+            print("shrunk")
+            #print(sortedvertices[3][0])
+            count=count+1
+    else:
+        xC=[0.5*a_i+0.5*b_i for a_i,b_i in zip(Averagenew,worstnew)]
+        incontobj=objective(vols,strikes,xC)
+        if incontobj<sortedvertices[3][1]:
+            sortedvertices[3]=xC,incontobj
+            print("contracted")
+            #print(sortedvertices[3][0])
+            count=count+1
+        else:
+            
+            a=sortedvertices[1][0]
+            anew=[0.5*a_i+0.5*b_i for a_i,b_i in zip(a,sortedvertices[0][0])]
+            anewobj=objective(vols,strikes,anew)
+            sortedvertices[1]=anew,anewobj
+            b=sortedvertices[2][0]
+            bnew=[0.5*a_i+0.5*b_i for a_i,b_i in zip(b,sortedvertices[0][0])]
+            bnewobj=objective(vols,strikes,bnew)
+            sortedvertices[2]=bnew,bnewobj
+            c=sortedvertices[3][0]
+            cnew=[0.5*a_i+0.5*b_i for a_i,b_i in zip(c,sortedvertices[0][0])]
+            cnewobj=objective(vols,strikes,cnew)
+            sortedvertices[3]=cnew,cnewobj
+            print("shrunk")
+            #print(sortedvertices[3][0])
+            count=count+1
+            
+    
+    
+print(sortedvertices[0][0],objective(vols,strikes,sortedvertices[0][0]),"number of iteration is",count)
+
+    
